@@ -5,6 +5,13 @@
     text-align: center;
 }
 
+#post-form-wrapper {
+    width: 100%;
+    border: 1px solid black;
+    overflow: hidden;
+    text-align: center;
+}
+
 #login {
     width: 50%;
     display: inline-block;
@@ -19,4 +26,9 @@
     color: red;
     text-align: center;
     font-size: 24px
+}
+
+.post {
+    text-align: center;
+    border: 1px solid black;
 }

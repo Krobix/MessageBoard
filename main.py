@@ -13,7 +13,7 @@ def setup_db():
 
     if is_setup.fetchone() is None:
         c.execute("CREATE TABLE users(userId int, username text, passwd blob)")
-        c.execute("CREATE TABLE posts(postId int, title text, content longtext)")
+        c.execute("CREATE TABLE posts(postId int, userId int, title text, content longtext)")
         db.commit()
 
 
@@ -33,6 +33,14 @@ def get_user(uid=None, username=None):
         return q.fetchone()
 
 
+def gen_post_html(username, title, content):
+    html = '<div class="post">'
+    html += f'<p>Post by: {username}</p><br/>'
+    html += f'<h2>{title}</h2><br/><br/>'
+    html += f'<p>{content}</p><br/></div>'
+    return html
+
+
 @bottle.get('/styles.css')
 def stylesheets():
     return bottle.static_file("styles.css", root='static/')
@@ -46,10 +54,16 @@ def index_redir():
 @bottle.get('/mb')
 def main_page():
     status = bottle.request.query.status
+    show_posts = []
+    c = db.cursor()
     page = '<link rel="stylesheet" href="styles.css">'
     login_page = ""
+    post_page = ""
     with open("static/login.html", "r") as f:
         login_page += f.read().strip()
+
+    with open("static/post.html") as f:
+        post_page += f.read().strip()
 
     if status=="home":
         page += login_page
@@ -65,6 +79,30 @@ def main_page():
     elif status=="badpass":
         page += '<p id="error">Error: incorrect password</p><br/>'
         page += login_page
+
+    elif status=="main":
+        page += post_page
+
+    posts = c.execute("SELECT * FROM posts")
+    xp = posts.fetchall()
+    if xp != []:
+        max = xp[0][0]
+        print(xp[0])
+        for i in xp:
+            #print("for i")
+            if max < i[0]:
+                max = i[0]
+        for j in range(max-MAX_POSTS, max+1):
+            #print("for j")
+            for k in xp:
+                #print(f"k[0]={k[0]}, j={j}")
+                if int(k[0])==int(j):
+                    show_posts.append(k)
+                    #print("Showing post")
+
+    show_posts.reverse()
+    for l in show_posts:
+        page += gen_post_html(get_user(l[1])[1], l[2], l[3])
 
     return page
 
@@ -107,6 +145,27 @@ def login():
         else:
             bottle.redirect("mb?status=badpass")
 
+@bottle.post('/post')
+def post():
+    c = db.cursor()
+    title = bottle.request.forms.get('title')
+    content = bottle.request.forms.get('content')
+    session = bottle.request.get_cookie("session")
+
+    if session==None:
+        bottle.redirect("/mb?status=noexist")
+    else:
+        u = c.execute('SELECT * FROM users WHERE userId=?', (sessions[session],))
+        user = u.fetchone()
+        c.execute("SELECT * FROM posts WHERE userId = (SELECT MAX(postId) FROM posts)")
+        lastId = c.fetchone()
+        if lastId is None:
+            lastId = (0,)
+        lastId = int(lastId[0])
+        c.execute("INSERT INTO posts VALUES(?, ?, ?, ?)", (lastId, user[0], title, content))
+        db.commit()
+        bottle.redirect("/mb?status=main")
+
 if __name__ == "__main__":
     setup_db()
-    bottle.run(host='0.0.0.0', port=8080, debug=True)
+    bottle.run(host='0.0.0.0', port=4500, debug=True)
